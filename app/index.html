@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicción de abandono de clientes</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f3f5f9;margin:0;color:#222}
+  header{background:#1f3a5f;color:#fff;padding:18px 24px}
+  header h1{margin:0;font-size:20px} header p{margin:4px 0 0;font-size:13px;opacity:.85}
+  main{max-width:900px;margin:20px auto;padding:0 16px;display:grid;gap:16px;grid-template-columns:1fr 1fr}
+  @media(max-width:700px){main{grid-template-columns:1fr}}
+  .card{background:#fff;border-radius:8px;padding:18px;box-shadow:0 1px 4px #0002}
+  label{display:block;font-size:12px;margin:8px 0 2px;color:#555}
+  select,input{width:100%;padding:6px;border:1px solid #bbb;border-radius:4px;box-sizing:border-box}
+  button{margin-top:14px;width:100%;padding:10px;background:#1f3a5f;color:#fff;border:0;border-radius:4px;font-size:15px;cursor:pointer}
+  #res{text-align:center}
+  .barra{height:18px;background:#ddd;border-radius:9px;overflow:hidden;margin:10px 0}
+  #fill{height:100%;width:0;background:#2e9e5b;transition:width .4s}
+  #pct{font-size:42px;font-weight:bold;margin:6px 0}
+  .tag{display:inline-block;padding:4px 14px;border-radius:14px;color:#fff;font-weight:bold}
+</style>
+</head>
+<body>
+<header><h1>Predicción de abandono de clientes (Telco Churn)</h1>
+<p>Minería de Datos · Random Forest · API FastAPI</p></header>
+<main>
+<div class="card">
+  <h3>Datos del cliente</h3>
+  <div id="campos"></div>
+  <button onclick="predecir()">Predecir</button>
+</div>
+<div class="card" id="res">
+  <h3>Resultado</h3>
+  <p id="msg">Completa el formulario y pulsa «Predecir».</p>
+  <div id="pct"></div>
+  <div class="barra"><div id="fill"></div></div>
+  <span id="nivel" class="tag" style="display:none"></span>
+  <p id="pred"></p>
+</div>
+</main>
+<script>
+const SN=["No","Yes"];
+const CAMPOS=[
+ ["gender","Género",["Female","Male"]],["SeniorCitizen","Adulto mayor",SN],["Partner","Pareja",SN],["Dependents","Dependientes",SN],
+ ["tenure","Antigüedad (meses, 0-72)","num",3],["PhoneService","Servicio telefónico",["Yes","No"]],["MultipleLines","Múltiples líneas",SN],
+ ["InternetService","Internet",["Fiber optic","DSL","No"]],["OnlineSecurity","Seguridad online",SN],["OnlineBackup","Respaldo online",SN],
+ ["DeviceProtection","Protección de equipo",SN],["TechSupport","Soporte técnico",SN],["StreamingTV","Streaming TV",SN],["StreamingMovies","Streaming películas",SN],
+ ["Contract","Contrato",["Month-to-month","One year","Two year"]],["PaperlessBilling","Factura electrónica",["Yes","No"]],
+ ["PaymentMethod","Método de pago",["Electronic check","Mailed check","Bank transfer (automatic)","Credit card (automatic)"]],
+ ["MonthlyCharges","Cargo mensual (USD)","num",75]
+];
+const cont=document.getElementById("campos");
+CAMPOS.forEach(([id,txt,op,def])=>{
+  const l=document.createElement("label");l.textContent=txt;l.htmlFor=id;cont.appendChild(l);
+  let e;
+  if(op==="num"){e=document.createElement("input");e.type="number";e.step="any";e.min=0;e.value=def}
+  else{e=document.createElement("select");op.forEach(o=>e.add(new Option(o,o)))}
+  e.id=id;cont.appendChild(e);
+});
+async function predecir(){
+  const body={};
+  CAMPOS.forEach(([id,,op])=>{const v=document.getElementById(id).value;body[id]=op==="num"?parseFloat(v):v});
+  const msg=document.getElementById("msg");
+  try{
+    const r=await fetch("/predict",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error("Error "+r.status);
+    const d=await r.json();
+    const p=d.probabilidad_abandono*100;
+    const col={Alto:"#d64545",Medio:"#e0a020",Bajo:"#2e9e5b"}[d.nivel_riesgo];
+    msg.textContent="";
+    document.getElementById("pct").textContent=p.toFixed(1)+"%";
+    const f=document.getElementById("fill");f.style.width=p+"%";f.style.background=col;
+    const n=document.getElementById("nivel");n.style.display="inline-block";n.style.background=col;n.textContent="Riesgo "+d.nivel_riesgo;
+    document.getElementById("pred").textContent="Predicción: "+d.prediccion+" (umbral "+d.umbral.toFixed(2)+")";
+  }catch(e){msg.textContent="No se pudo consultar la API: "+e.message}
+}
+</script>
+</body>
+</html>
